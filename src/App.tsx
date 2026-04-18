@@ -1,15 +1,49 @@
 import { useState } from 'react'
 import { useSearch, useQuery, useStreamSearch } from '@semilayer/react'
+import type { QueryParams } from '@semilayer/client'
 import { LENS } from './beam'
 
 type Mode = 'search' | 'query' | 'stream'
 
 type Row = Record<string, unknown>
 
+/**
+ * Parse a comma-separated `field=value` filter into a `where` clause.
+ * Values are JSON-parsed when possible so `true`, numbers, and quoted
+ * strings behave naturally; everything else stays a bare string.
+ *
+ *   ""                                  → null (no filter, all rows)
+ *   "category=snacks"                   → { category: "snacks" }
+ *   "vegetarian=true, price=5"          → { vegetarian: true, price: 5 }
+ */
+function parseFilter(text: string): Record<string, unknown> | null {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+  const out: Record<string, unknown> = {}
+  for (const pair of trimmed.split(',').map((s) => s.trim()).filter(Boolean)) {
+    const eq = pair.indexOf('=')
+    if (eq < 0) throw new Error(`Expected "field=value", got "${pair}"`)
+    const key = pair.slice(0, eq).trim()
+    if (!key) throw new Error(`Missing field name in "${pair}"`)
+    const rawValue = pair.slice(eq + 1).trim()
+    let value: unknown = rawValue
+    try {
+      value = JSON.parse(rawValue)
+    } catch {
+      /* keep as bare string */
+    }
+    out[key] = value
+  }
+  return out
+}
+
 export function App() {
   const [mode, setMode] = useState<Mode>('search')
   const [draft, setDraft] = useState('')
   const [submitted, setSubmitted] = useState<string | null>(null)
+  const [queryWhere, setQueryWhere] = useState<Record<string, unknown> | null>(null)
+  const [queryRun, setQueryRun] = useState(false)
+  const [parseError, setParseError] = useState<string | null>(null)
 
   const search = useSearch<Row>(
     LENS,
@@ -21,18 +55,25 @@ export function App() {
     mode === 'stream' && submitted ? { query: submitted, limit: 50 } : null,
   )
 
-  // Structured query — no embedding, just filter/sort/paginate the lens.
-  // `enabled: false` keeps it idle until the user clicks "Run query".
-  const query = useQuery<Row>(
-    LENS,
-    { limit: 12, orderBy: { field: 'id', dir: 'desc' } },
-    { enabled: false },
-  )
+  const queryParams: QueryParams = {
+    limit: 12,
+    orderBy: { field: 'id', dir: 'desc' },
+    ...(queryWhere ? { where: queryWhere } : {}),
+  }
+  const query = useQuery<Row>(LENS, queryParams, {
+    enabled: mode === 'query' && queryRun,
+  })
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    setParseError(null)
     if (mode === 'query') {
-      query.refetch()
+      try {
+        setQueryWhere(parseFilter(draft))
+        setQueryRun(true)
+      } catch (err) {
+        setParseError(err instanceof Error ? err.message : String(err))
+      }
     } else {
       setSubmitted(draft)
     }
@@ -40,7 +81,9 @@ export function App() {
 
   const onModeChange = (next: Mode) => {
     setMode(next)
+    setDraft('')
     setSubmitted(null)
+    setParseError(null)
   }
 
   return (
@@ -67,12 +110,11 @@ export function App() {
           onChange={(e) => setDraft(e.target.value)}
           placeholder={
             mode === 'query'
-              ? 'Query ignores this field — edit App.tsx to add filters'
+              ? 'Filter — e.g. category=snacks, vegetarian=true (blank = all rows)'
               : mode === 'stream'
                 ? 'Stream results as they arrive — e.g. "hearty fall stew"'
                 : 'Search semantically — e.g. "quick weeknight dinner"'
           }
-          disabled={mode === 'query'}
         />
         <button
           type="submit"
@@ -86,7 +128,13 @@ export function App() {
         </button>
       </form>
 
-      <ErrorBanner mode={mode} search={search} stream={stream} query={query} />
+      <ErrorBanner
+        mode={mode}
+        search={search}
+        stream={stream}
+        query={query}
+        parseError={parseError}
+      />
       <MetaLine mode={mode} search={search} stream={stream} query={query} />
 
       {mode === 'search' && (
@@ -140,16 +188,23 @@ function ErrorBanner({
   search,
   stream,
   query,
+  parseError,
 }: {
   mode: Mode
   search: ReturnType<typeof useSearch>
   stream: ReturnType<typeof useStreamSearch>
   query: ReturnType<typeof useQuery>
+  parseError: string | null
 }) {
-  const err =
-    mode === 'search' ? search.error : mode === 'stream' ? stream.error : query.error
-  if (!err) return null
-  return <div className="error">{err.message}</div>
+  const message =
+    parseError ??
+    (mode === 'search'
+      ? search.error?.message
+      : mode === 'stream'
+        ? stream.error?.message
+        : query.error?.message)
+  if (!message) return null
+  return <div className="error">{message}</div>
 }
 
 function MetaLine({
