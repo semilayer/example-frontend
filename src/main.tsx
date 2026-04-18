@@ -1,10 +1,14 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { SemiLayerProvider } from '@semilayer/react'
+import { beam } from './beam'
 import { App } from './App'
 import './App.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <SemiLayerProvider client={beam}>
+      <App />
+    </SemiLayerProvider>
   </React.StrictMode>,
 )

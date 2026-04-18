@@ -1,9 +1,9 @@
 {
   "name": "semilayer-example-frontend",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Minimal Vite + React example showing semantic search and structured query against a SemiLayer lens.",
+  "description": "Minimal Vite + React example showing semantic search, structured query, and streaming against a SemiLayer lens using @semilayer/react.",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@semilayer/client": "^1.2.1",
+    "@semilayer/client": "^1.2.4",
+    "@semilayer/react": "^1.3.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

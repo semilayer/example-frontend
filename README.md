@@ -5,17 +5,18 @@
 </p>
 
 <p align="right">
-A minimal <a href="https://vitejs.dev/">Vite</a> + React 19 app that talks to a <a href="https://semilayer.com">SemiLayer</a> lens using the official <a href="https://www.npmjs.com/package/@semilayer/client"><code>@semilayer/client</code></a> package.
+A minimal <a href="https://vitejs.dev/">Vite</a> + React 19 app that talks to a <a href="https://semilayer.com">SemiLayer</a> lens using <a href="https://www.npmjs.com/package/@semilayer/react"><code>@semilayer/react</code></a> hooks on top of <a href="https://www.npmjs.com/package/@semilayer/client"><code>@semilayer/client</code></a>.
 </p>
 
 ---
 
-It demonstrates two things — the two things most apps actually need:
+It demonstrates three modes — the three shapes most apps actually need:
 
-1. **Semantic search** — `beam.search(lens, { query })`
-2. **Structured query** — `beam.query(lens, { where, orderBy, limit })`
+1. **Semantic search** — `useSearch(lens, { query })`
+2. **Structured query** — `useQuery(lens, { where, orderBy, limit })`
+3. **Streaming search** — `useStreamSearch(lens, { query })` for progressive rendering over WebSocket
 
-The whole app is ~100 lines of React. Clone it, point it at a lens, and
+The whole app is ~150 lines of React. Clone it, point it at a lens, and
 you're searching.
 
 <img src="./public/example-frontend.png" />
@@ -113,30 +114,31 @@ pnpm dev
 ```
 example-frontend/
 ├── src/
-│   ├── beam.ts          # single shared BeamClient
-│   ├── App.tsx          # search + query UI (toggle at the top)
+│   ├── beam.ts          # single shared BeamClient, handed to the provider
+│   ├── App.tsx          # search / query / stream UI (toggle at the top)
 │   ├── App.css
-│   └── main.tsx
+│   └── main.tsx         # wraps <App /> in <SemiLayerProvider>
 ├── index.html
 ├── vite.config.ts
 ├── tsconfig.json
 └── .env.example
 ```
 
-The whole SemiLayer integration is `src/beam.ts` + the two calls in
+The integration is `src/beam.ts` (one `BeamClient`), `src/main.tsx`
+(one `<SemiLayerProvider client={beam}>`), and three hook calls in
 `src/App.tsx`:
 
-```ts
-// Semantic search
-const res = await beam.search(LENS, { query: 'spicy asian noodles', limit: 12 })
-
-// Structured query
-const res = await beam.query(LENS, { limit: 12, orderBy: { field: 'id', dir: 'desc' } })
+```tsx
+const search = useSearch(LENS, submitted ? { query: submitted, limit: 12 } : null)
+const stream = useStreamSearch(LENS, submitted ? { query: submitted, limit: 50 } : null)
+const query  = useQuery(LENS, { limit: 12, orderBy: { field: 'id', dir: 'desc' } }, { enabled: false })
 ```
 
-That's the whole API surface used by this example. See the
-[client reference](https://semilayer.dev/reference/client) for streaming,
-similarity, and end-user auth.
+Each hook handles its own loading / error / cleanup state — you read
+from it, you don't await it. See the
+[React hooks reference](https://semilayer.dev/reference/react-hooks)
+for the full API (provider options, `useSimilar`, `useSubscribe`,
+`useObserve`).
 
 ---
 
